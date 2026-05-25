@@ -85,6 +85,10 @@ async function loadText(url: string): Promise<string> {
   return await response.text();
 }
 
+async function loadFreshText(url: string): Promise<string> {
+  return await loadText(rawGitHubUrl(url) ?? url);
+}
+
 async function loadRegistry(): Promise<Registry> {
   return await loadJson<Registry>(registryUrl);
 }
@@ -102,10 +106,15 @@ async function loadLatest(source: RegistrySource): Promise<BookLatest> {
   if (!rawUrl) return latest;
   try {
     const rawLatest = await loadJson<BookLatest>(rawUrl);
-    return rawLatest.readerManifestUrl && rawLatest.schemaVersion !== latest.schemaVersion ? rawLatest : latest.readerManifestUrl ? latest : rawLatest;
+    return rawLatest.readerManifestUrl ? rawLatest : latest;
   } catch {
     return latest;
   }
+}
+
+async function loadFreshJson<T>(url: string): Promise<T> {
+  const rawUrl = rawGitHubUrl(url);
+  return await loadJson<T>(rawUrl ?? url);
 }
 
 async function loadSeriesBundles(): Promise<SeriesBundle[]> {
@@ -116,8 +125,8 @@ async function loadSeriesBundles(): Promise<SeriesBundle[]> {
       const latest = await loadLatest(source);
       if (!latest.readerManifestUrl) throw new Error(`${source.id} latest.json is missing readerManifestUrl`);
       const [graph, reader] = await Promise.all([
-        loadJson<BookGraph>(latest.graphUrl),
-        loadJson<ReaderManifest>(latest.readerManifestUrl),
+        loadFreshJson<BookGraph>(latest.graphUrl),
+        loadFreshJson<ReaderManifest>(latest.readerManifestUrl),
       ]);
       return { source, latest, graph, reader };
     }),
@@ -275,7 +284,7 @@ function ReaderPage() {
   useEffect(() => {
     let cancelled = false;
     if (!chapter) return;
-    loadText(chapter.markdownUrl).then(text => {
+    loadFreshText(chapter.markdownUrl).then(text => {
       if (!cancelled) setMarkdown(text);
     });
     return () => {
