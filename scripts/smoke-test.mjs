@@ -1,0 +1,25 @@
+import { readFile } from "node:fs/promises";
+
+const registry = "https://cdn.jsdelivr.net/gh/StevenBuglione/omg-data-registry@main/sources.json";
+const response = await fetch(registry);
+if (!response.ok) throw new Error(`registry smoke failed: HTTP ${response.status}`);
+const data = await response.json();
+if (data.routeMode !== "query") throw new Error("registry routeMode must be query");
+if (!data.sources.some(source => source.type === "book-series")) throw new Error("registry must expose book-series sources");
+const runtime = await readFile("src/components/WikiRuntime.tsx", "utf8");
+const registryLoader = await readFile("src/wiki-core/registry.ts", "utf8");
+const citations = await readFile("src/wiki-core/citations.ts", "utf8");
+const styles = await readFile("src/components/WikiRuntime.module.css", "utf8");
+if (!runtime.includes("styles.citationPill")) throw new Error("runtime must render numeric citations as pills");
+if (!runtime.includes("export function GraphApp")) throw new Error("runtime must export graph app");
+if (!runtime.includes("loadBookGraphs")) throw new Error("graph app must load book graph artifacts");
+if (!runtime.includes("Citation ${label}")) throw new Error("citation pills must include accessible labels");
+if (!runtime.includes("/^\\d+$/")) throw new Error("citation pill detection must stay limited to numeric links");
+if (!registryLoader.includes("normalizeCitationMarkdown(await loadText")) throw new Error("wiki pages must normalize citations before rendering");
+if (!registryLoader.includes('normalized.replace(/^assets\\//, "")')) throw new Error("relative wiki images must resolve against assetsBaseUrl without duplicating assets/");
+if (!registryLoader.includes("omg-data-registry")) throw new Error("site must use omg-data-registry by default");
+if (!citations.includes("dedupeNumericCitationLinks")) throw new Error("citation normalizer must dedupe repeated numeric links");
+if (!citations.includes("spaceAdjacentNumericCitationLinks")) throw new Error("citation normalizer must keep adjacent pills readable");
+if (!styles.includes(".citationPill")) throw new Error("citation pill styles are missing");
+if (!styles.includes('h2[id="sources"] + ol')) throw new Error("Sources list polish is missing");
+console.log("wiki-site smoke ok");

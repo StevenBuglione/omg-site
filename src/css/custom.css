@@ -1,0 +1,12 @@
+:root {
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d4ed8;
+  --ifm-color-primary-darker: #1e40af;
+  --ifm-color-primary-darkest: #1e3a8a;
+  --ifm-color-primary-light: #3b82f6;
+  --ifm-font-family-base: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.theme-doc-markdown code {
+  white-space: break-spaces;
+}

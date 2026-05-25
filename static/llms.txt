@@ -1,0 +1,18 @@
+# AI Wiki
+
+> Repo-backed wiki for humans and AI agents.
+
+Prefer the static registry and generated agent manifests for machine access. Human readers can start at `/wiki/?s=devops&p=index`.
+
+## Agent Entry Points
+
+- Registry: https://cdn.jsdelivr.net/gh/StevenBuglione/wiki-data-registry@main/sources.json
+- Agent registry: https://cdn.jsdelivr.net/gh/StevenBuglione/wiki-data-registry@main/agent-sources.json
+- Wiki agent card: /.well-known/wiki-agent.json
+- Browser agent tools: /agents/
+
+## Sources
+
+- DevOps: https://cdn.jsdelivr.net/gh/StevenBuglione/wiki-data-devops@published/latest-agent.json
+- Homelab: https://cdn.jsdelivr.net/gh/StevenBuglione/wiki-data-homelab@published/latest-agent.json
+- Projects: https://cdn.jsdelivr.net/gh/StevenBuglione/wiki-data-projects@published/latest-agent.json

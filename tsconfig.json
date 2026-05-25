@@ -1,0 +1,11 @@
+{
+  "extends": "@docusaurus/tsconfig",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "ignoreDeprecations": "6.0",
+    "strict": true
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://stevenbuglione.github.io/wiki-site/sitemap.xml

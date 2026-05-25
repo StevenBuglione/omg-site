@@ -1,0 +1,27 @@
+{
+  "name": "omg-site",
+  "private": true,
+  "scripts": {
+    "dev": "docusaurus start",
+    "build": "docusaurus build",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "@docusaurus/core": "latest",
+    "@docusaurus/preset-classic": "latest",
+    "@mdx-js/react": "latest",
+    "clsx": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "react-markdown": "latest",
+    "rehype-sanitize": "latest",
+    "remark-gfm": "latest"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "latest",
+    "@docusaurus/tsconfig": "latest",
+    "@docusaurus/types": "latest",
+    "typescript": "latest"
+  }
+}

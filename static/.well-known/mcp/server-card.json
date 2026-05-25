@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "steve-wiki-mcp-server-card/v1",
+  "name": "AI Wiki",
+  "description": "Repo-backed wiki for humans and AI agents.",
+  "status": "planned",
+  "transports": [],
+  "resources": [
+    "wiki://registry",
+    "wiki://source/{sourceId}/manifest",
+    "wiki://page/{sourceId}/{slug}",
+    "wiki://section/{sourceId}/{slug}#{anchor}"
+  ],
+  "tools": [
+    "wiki.list_sources",
+    "wiki.search",
+    "wiki.get_page",
+    "wiki.get_section",
+    "wiki.filter_pages",
+    "wiki.list_tags",
+    "wiki.resolve_reference",
+    "wiki.health"
+  ],
+  "webmcpDebugPage": "https://stevenbuglione.github.io/wiki-site/agents/"
+}
