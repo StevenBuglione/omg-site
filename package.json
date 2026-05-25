@@ -1,27 +1,29 @@
 {
   "name": "omg-site",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "docusaurus start",
-    "build": "docusaurus build",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build && node scripts/copy-spa-fallback.mjs",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/smoke-test.mjs"
   },
   "dependencies": {
-    "@docusaurus/core": "latest",
-    "@docusaurus/preset-classic": "latest",
-    "@mdx-js/react": "latest",
+    "@tanstack/react-query": "latest",
+    "@vitejs/plugin-react": "latest",
     "clsx": "latest",
+    "cytoscape": "latest",
+    "lucide-react": "latest",
     "react": "latest",
     "react-dom": "latest",
     "react-markdown": "latest",
-    "rehype-sanitize": "latest",
-    "remark-gfm": "latest"
+    "react-router-dom": "^7.15.1",
+    "remark-gfm": "latest",
+    "vite": "latest"
   },
   "devDependencies": {
-    "@docusaurus/module-type-aliases": "latest",
-    "@docusaurus/tsconfig": "latest",
-    "@docusaurus/types": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
     "typescript": "latest"
   }
 }
