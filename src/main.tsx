@@ -1,6 +1,6 @@
 import cytoscape, { type Core, type ElementDefinition, type StylesheetCSS } from "cytoscape";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { BookOpen, ChevronLeft, ChevronRight, Library, Network, Search } from "lucide-react";
+import { BookOpen, ChevronLeft, ChevronRight, FileText, Library, Network, Search } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import ReactMarkdown from "react-markdown";
@@ -137,6 +137,10 @@ function route(path: string) {
   return `${basePath}${path}`;
 }
 
+function stripFrontmatter(markdown: string) {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n/, "").trimStart();
+}
+
 function useBundles() {
   return useQuery({ queryKey: ["series-bundles"], queryFn: loadSeriesBundles, staleTime: 60_000 });
 }
@@ -144,18 +148,31 @@ function useBundles() {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
-      <header className="topbar">
+      <aside className="app-sidebar">
         <Link className="brand" to="/library">
-          <span>OMG</span>
-          <strong>Fiction Studio</strong>
+          <span>O</span>
+          <strong>OMG Studio</strong>
         </Link>
         <nav>
           <Link to="/library"><Library size={17} /> Library</Link>
           <Link to="/graph"><Network size={17} /> Graph</Link>
-          <a href="https://github.com/StevenBuglione/omg-data-registry">Registry</a>
+          <a href="https://github.com/StevenBuglione/omg-data-registry"><FileText size={17} /> Registry</a>
         </nav>
-      </header>
-      {children}
+        <div className="sidebar-section">
+          <p>Notebooks</p>
+          <Link to="/series/lantern-archive">The Lantern Archive</Link>
+          <Link to="/series/lantern-archive/book/ember-gate">The Ember Gate</Link>
+          <Link to="/read/lantern-archive/ember-gate/chapter-001">Chapter 001</Link>
+        </div>
+        <div className="sidebar-section">
+          <p>Tags</p>
+          <Link to="/graph?tag=published">published</Link>
+          <Link to="/graph?tag=reviewed">reviewed</Link>
+          <Link to="/graph?tag=story-graph">story graph</Link>
+        </div>
+        <div className="sync-status">Static sync: GitHub Pages</div>
+      </aside>
+      <section className="workspace">{children}</section>
     </div>
   );
 }
@@ -184,18 +201,30 @@ function LibraryPage() {
           <Link className="primary-action" to="/graph"><Network size={18} /> Open Graph</Link>
         </section>
         <section className="series-grid">
-          {items.map(item => (
-            <article className="series-card" key={item.source.id}>
-              <div className="card-kicker">{item.reader.books.length} books / {item.reader.chapters.length} chapters</div>
-              <h2>{item.reader.series.title}</h2>
-              <p>{item.reader.series.logline || item.source.description}</p>
-              <div className="card-actions">
-                <Link to={`/series/${item.source.id}`}>Series</Link>
-                <Link to={`/graph/${item.source.id}`}>Graph</Link>
-                {item.reader.chapters[0] ? <Link to={`/read/${item.source.id}/${item.reader.chapters[0].bookId}/${item.reader.chapters[0].chapterId}`}>Read</Link> : null}
-              </div>
-            </article>
-          ))}
+          <div className="series-list">
+            {items.map(item => (
+              <article className="series-card" key={item.source.id}>
+                <div className="card-kicker">{item.reader.books.length} books / {item.reader.chapters.length} chapters</div>
+                <h2>{item.reader.series.title}</h2>
+                <p>{item.reader.series.logline || item.source.description}</p>
+                <div className="card-actions">
+                  <Link to={`/series/${item.source.id}`}>Series</Link>
+                  <Link to={`/graph/${item.source.id}`}>Graph</Link>
+                  {item.reader.chapters[0] ? <Link to={`/read/${item.source.id}/${item.reader.chapters[0].bookId}/${item.reader.chapters[0].chapterId}`}>Read</Link> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+          <article className="note-preview">
+            <p>Selected notebook</p>
+            <h2>{items[0]?.reader.series.title ?? "No series loaded"}</h2>
+            <span>{items[0]?.reader.series.logline ?? "Connect an omg-data series to populate the fiction studio."}</span>
+            <div className="preview-metadata">
+              <strong>{items.reduce((sum, item) => sum + item.reader.books.length, 0)}</strong><span>Books</span>
+              <strong>{items.reduce((sum, item) => sum + item.reader.chapters.length, 0)}</strong><span>Published chapters</span>
+              <strong>{items.reduce((sum, item) => sum + item.graph.nodes.length, 0)}</strong><span>Graph nodes</span>
+            </div>
+          </article>
         </section>
       </main>
     </Shell>
@@ -305,7 +334,7 @@ function ReaderPage() {
           {bookChapters.map(item => <Link className={item.chapterId === chapter.chapterId ? "active" : ""} to={`/read/${bundle.source.id}/${item.bookId}/${item.chapterId}`} key={item.chapterId}>{item.title}</Link>)}
         </aside>
         <article className="prose-panel">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(markdown)}</ReactMarkdown>
           <div className="reader-nav">
             {chapter.previousChapterId ? <Link to={`/read/${bundle.source.id}/${bookId}/${chapter.previousChapterId}`}><ChevronLeft size={18} /> Previous</Link> : <span />}
             {chapter.nextChapterId ? <Link to={`/read/${bundle.source.id}/${bookId}/${chapter.nextChapterId}`}>Next <ChevronRight size={18} /></Link> : <span />}
@@ -406,16 +435,16 @@ function GraphStudio() {
     ];
     cyRef.current?.destroy();
     const graphStyle = [
-      { selector: "node", style: { "background-color": "data(color)", label: "data(label)", color: "#172033", "font-size": "10px", "text-wrap": "wrap", "text-max-width": "120px", "text-valign": "bottom", "text-margin-y": "8px", width: "18px", height: "18px", "border-width": "3px", "border-color": "#ffffff" } },
-      { selector: "edge", style: { width: 1.4, "line-color": "#9aa8bd", "target-arrow-color": "#9aa8bd", "target-arrow-shape": "triangle", "curve-style": "bezier", opacity: 0.58 } },
-      { selector: `node[id = "${selectedId}"]`, style: { width: "31px", height: "31px", "border-color": "#111827", "border-width": "5px" } },
+      { selector: "node", style: { "background-color": "data(color)", label: "data(label)", color: "#172033", "font-size": "9px", "text-wrap": "wrap", "text-max-width": "110px", "text-valign": "bottom", "text-margin-y": "11px", "text-outline-width": "2px", "text-outline-color": "#fbfcfd", width: "19px", height: "19px", "border-width": "3px", "border-color": "#ffffff" } },
+      { selector: "edge", style: { width: 1.2, "line-color": "#9aa8bd", "target-arrow-color": "#9aa8bd", "target-arrow-shape": "triangle", "curve-style": "bezier", opacity: 0.46 } },
+      { selector: `node[id = "${selectedId}"]`, style: { width: "33px", height: "33px", "font-size": "11px", "font-weight": "700", "border-color": "#111827", "border-width": "5px" } },
     ] as unknown as StylesheetCSS[];
     const cy = cytoscape({
       container: container.current,
       elements,
       wheelSensitivity: 0.18,
       style: graphStyle,
-      layout: { name: "cose", animate: false, fit: true, padding: 50, nodeRepulsion: 9000, idealEdgeLength: 110 },
+      layout: { name: "cose", animate: false, fit: true, padding: 78, nodeRepulsion: 21000, idealEdgeLength: 150, componentSpacing: 120, nodeOverlap: 16 },
     });
     let lastTap = { id: "", time: 0 };
     cy.on("tap", "node", event => {
