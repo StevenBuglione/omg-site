@@ -89,15 +89,35 @@ async function loadRegistry(): Promise<Registry> {
   return await loadJson<Registry>(registryUrl);
 }
 
+function rawGitHubUrl(url: string): string | null {
+  const match = url.match(/^https:\/\/cdn\.jsdelivr\.net\/gh\/([^/]+)\/([^@]+)@([^/]+)\/(.+)$/);
+  if (!match) return null;
+  const [, owner, repo, ref, filePath] = match;
+  return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`;
+}
+
+async function loadLatest(source: RegistrySource): Promise<BookLatest> {
+  const latest = await loadJson<BookLatest>(source.latestUrl);
+  const rawUrl = rawGitHubUrl(source.latestUrl);
+  if (!rawUrl) return latest;
+  try {
+    const rawLatest = await loadJson<BookLatest>(rawUrl);
+    return rawLatest.readerManifestUrl && rawLatest.schemaVersion !== latest.schemaVersion ? rawLatest : latest.readerManifestUrl ? latest : rawLatest;
+  } catch {
+    return latest;
+  }
+}
+
 async function loadSeriesBundles(): Promise<SeriesBundle[]> {
   const registry = await loadRegistry();
   const sources = registry.sources.filter(source => source.enabled && source.type === "book-series").sort((a, b) => a.order - b.order);
   return await Promise.all(
     sources.map(async source => {
-      const latest = await loadJson<BookLatest>(source.latestUrl);
+      const latest = await loadLatest(source);
+      if (!latest.readerManifestUrl) throw new Error(`${source.id} latest.json is missing readerManifestUrl`);
       const [graph, reader] = await Promise.all([
         loadJson<BookGraph>(latest.graphUrl),
-        loadJson<ReaderManifest>(latest.readerManifestUrl ?? latest.catalogUrl),
+        loadJson<ReaderManifest>(latest.readerManifestUrl),
       ]);
       return { source, latest, graph, reader };
     }),
