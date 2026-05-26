@@ -1,6 +1,6 @@
 import cytoscape, { type Core, type ElementDefinition, type StylesheetCSS } from "cytoscape";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { BookOpen, ChevronLeft, ChevronRight, FileText, Library, Network, Search } from "lucide-react";
+import { Activity, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, FileText, ImageIcon, Library, Network, Search } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import ReactMarkdown from "react-markdown";
@@ -29,9 +29,55 @@ type BookLatest = {
   manifestUrl: string;
   readerManifestUrl?: string;
   libraryIndexUrl?: string;
+  studioIndexUrl?: string;
+  researchManifestUrl?: string;
+  decisionManifestUrl?: string;
+  reviewManifestUrl?: string;
+  runManifestUrl?: string;
+  artManifestUrl?: string;
+  qualityReportUrl?: string;
   contentBaseUrl?: string;
   assetsBaseUrl?: string;
 };
+type StudioIndex = {
+  schemaVersion: string;
+  generatedAt: string;
+  series: { id: string; title: string; logline?: string; status?: string; bookCount?: number; chapterCount?: number; nodeCount?: number };
+  counts: Record<string, number>;
+  quality: { status: string; failedGates: string[]; gates: QualityGate[]; maturityGates?: QualityGate[]; maturityScore?: number; editorialAssessment?: EditorialAssessment | null };
+  books: Array<{ id: string; title: string; status: string; chapters: Array<{ id: string; title: string; status: string; hasProse?: boolean; generatedArt?: boolean }> }>;
+  recentRuns: StudioRun[];
+  recentDecisions: StudioDecision[];
+  recentReviews: StudioReview[];
+  artAssets: ArtAsset[];
+};
+type QualityGate = { id: string; label: string; actual: number; minimum: number; passed: boolean; severity?: string };
+type EditorialAssessment = {
+  assessment_id?: string;
+  decision?: string;
+  confidence?: number;
+  ready_for_drafting?: boolean;
+  next_stage?: string;
+  strengths?: string[];
+  weak_spots?: string[];
+  missing_questions?: string[];
+  recommended_development?: string[];
+  audit_scores?: Record<string, number>;
+  blocking_development_questions?: string[];
+  rationale?: string;
+  generated_at?: string;
+};
+type QualityReport = { schemaVersion: string; generatedAt: string; status: string; gates: QualityGate[]; maturityGates?: QualityGate[]; maturityScore?: number; counts: Record<string, number>; editorialAssessment?: EditorialAssessment | null; recommendedNextActions: string[] };
+type ResearchManifest = { schemaVersion: string; generatedAt: string; dossiers: ResearchDossier[] };
+type ResearchDossier = { id: string; title: string; domain: string; summary: string; sourceFamilies?: string[]; bookIds?: string[]; chapterIds?: string[]; sourceFile: string; details?: Record<string, unknown> };
+type StudioDecision = { id: string; type: string; bookId?: string | null; chapterId?: string | null; status: string; title: string; reason?: string; sourceFile: string; confidence?: number | null; conversationUrl?: string | null; packageId?: string | null; requestId?: string | null };
+type StudioReview = StudioDecision & { reviewer?: string; approved?: boolean; verdict?: string; blockingFindings?: string[]; nonBlockingFindings?: string[] };
+type DecisionManifest = { schemaVersion: string; generatedAt: string; decisions: StudioDecision[] };
+type ReviewManifest = { schemaVersion: string; generatedAt: string; reviews: StudioReview[] };
+type StudioRun = { id: string; action?: string | null; status: string; workerId?: string | null; packageId?: string | null; requestId?: string | null; conversationUrl?: string | null; sourceFile: string };
+type RunManifest = { schemaVersion: string; generatedAt: string; runs: StudioRun[] };
+type ArtAsset = { path: string; kind: string; alt: string; url: string; bookId?: string; chapterId?: string };
+type ArtManifest = { schemaVersion: string; generatedAt: string; decisions: StudioDecision[]; briefs: Array<Record<string, unknown> & { source_file: string }>; assets: ArtAsset[] };
 type BookRecord = { id: string; title: string; sequence: number; status: string; premise?: string; chapterIds?: string[] };
 type ReaderChapter = {
   seriesId: string;
@@ -40,9 +86,12 @@ type ReaderChapter = {
   title: string;
   status: string;
   proseFile: string;
-  markdownUrl: string;
+  hasProse?: boolean;
+  markdownUrl: string | null;
   wordCount: number;
   frontmatter?: Record<string, unknown>;
+  generatedArt?: boolean;
+  artifacts?: Array<{ path: string; kind: string; alt: string; url: string }>;
   graphNodeId: string;
   previousChapterId: string | null;
   nextChapterId: string | null;
@@ -68,6 +117,13 @@ type SeriesBundle = {
   latest: BookLatest;
   graph: BookGraph;
   reader: ReaderManifest;
+  studio: StudioIndex;
+  research: ResearchManifest;
+  decisions: DecisionManifest;
+  reviews: ReviewManifest;
+  runs: RunManifest;
+  art: ArtManifest;
+  quality: QualityReport;
 };
 
 const queryClient = new QueryClient();
@@ -100,7 +156,17 @@ function rawGitHubUrl(url: string): string | null {
   return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${filePath}`;
 }
 
+function localDevDataUrl(url: string): string | null {
+  if (!import.meta.env.DEV) return null;
+  const match = url.match(/^https:\/\/cdn\.jsdelivr\.net\/gh\/StevenBuglione\/(omg-data-[^@]+)@main\/(.+)$/);
+  if (!match) return null;
+  const [, repo, filePath] = match;
+  return `/local-data/${repo}/${filePath}`;
+}
+
 async function loadLatest(source: RegistrySource): Promise<BookLatest> {
+  const localUrl = localDevDataUrl(source.latestUrl);
+  if (localUrl) return await loadJson<BookLatest>(localUrl);
   const latest = await loadJson<BookLatest>(source.latestUrl);
   const rawUrl = rawGitHubUrl(source.latestUrl);
   if (!rawUrl) return latest;
@@ -113,8 +179,19 @@ async function loadLatest(source: RegistrySource): Promise<BookLatest> {
 }
 
 async function loadFreshJson<T>(url: string): Promise<T> {
+  const localUrl = localDevDataUrl(url);
+  if (localUrl) return await loadJson<T>(localUrl);
   const rawUrl = rawGitHubUrl(url);
   return await loadJson<T>(rawUrl ?? url);
+}
+
+async function loadOptionalFreshJson<T>(url: string | undefined, fallback: T): Promise<T> {
+  if (!url) return fallback;
+  try {
+    return await loadFreshJson<T>(url);
+  } catch {
+    return fallback;
+  }
 }
 
 async function loadSeriesBundles(): Promise<SeriesBundle[]> {
@@ -124,11 +201,29 @@ async function loadSeriesBundles(): Promise<SeriesBundle[]> {
     sources.map(async source => {
       const latest = await loadLatest(source);
       if (!latest.readerManifestUrl) throw new Error(`${source.id} latest.json is missing readerManifestUrl`);
-      const [graph, reader] = await Promise.all([
+      const [graph, reader, studio, research, decisions, reviews, runs, art, quality] = await Promise.all([
         loadFreshJson<BookGraph>(latest.graphUrl),
         loadFreshJson<ReaderManifest>(latest.readerManifestUrl),
+        loadOptionalFreshJson<StudioIndex>(latest.studioIndexUrl, {
+          schemaVersion: "omg-book-studio-index/v1",
+          generatedAt: "",
+          series: { id: source.id, title: source.label },
+          counts: {},
+          quality: { status: "unknown", failedGates: [], gates: [], maturityGates: [], maturityScore: 0, editorialAssessment: null },
+          books: [],
+          recentRuns: [],
+          recentDecisions: [],
+          recentReviews: [],
+          artAssets: [],
+        }),
+        loadOptionalFreshJson<ResearchManifest>(latest.researchManifestUrl, { schemaVersion: "omg-book-research-manifest/v1", generatedAt: "", dossiers: [] }),
+        loadOptionalFreshJson<DecisionManifest>(latest.decisionManifestUrl, { schemaVersion: "omg-book-decision-manifest/v1", generatedAt: "", decisions: [] }),
+        loadOptionalFreshJson<ReviewManifest>(latest.reviewManifestUrl, { schemaVersion: "omg-book-review-manifest/v1", generatedAt: "", reviews: [] }),
+        loadOptionalFreshJson<RunManifest>(latest.runManifestUrl, { schemaVersion: "omg-book-run-manifest/v1", generatedAt: "", runs: [] }),
+        loadOptionalFreshJson<ArtManifest>(latest.artManifestUrl, { schemaVersion: "omg-book-art-manifest/v1", generatedAt: "", decisions: [], briefs: [], assets: [] }),
+        loadOptionalFreshJson<QualityReport>(latest.qualityReportUrl, { schemaVersion: "omg-book-quality-report/v1", generatedAt: "", status: "unknown", gates: [], maturityGates: [], maturityScore: 0, counts: {}, recommendedNextActions: [] }),
       ]);
-      return { source, latest, graph, reader };
+      return { source, latest, graph, reader, studio, research, decisions, reviews, runs, art, quality };
     }),
   );
 }
@@ -155,7 +250,9 @@ function Shell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav>
           <Link to="/library"><Library size={17} /> Library</Link>
+          <Link to="/studio"><Activity size={17} /> Studio</Link>
           <Link to="/graph"><Network size={17} /> Graph</Link>
+          <Link to="/studio/research"><ClipboardList size={17} /> Research</Link>
           <a href="https://github.com/StevenBuglione/omg-data-registry"><FileText size={17} /> Registry</a>
         </nav>
         <div className="sidebar-section">
@@ -235,6 +332,281 @@ function findBundle(bundles: SeriesBundle[] | undefined, seriesId?: string) {
   return bundles?.find(item => item.source.id === seriesId || item.reader.series.id === seriesId) ?? bundles?.[0] ?? null;
 }
 
+function StudioTabs({ bundle, bookId }: { bundle: SeriesBundle; bookId?: string }) {
+  const base = bookId ? `/series/${bundle.source.id}/book/${bookId}` : `/series/${bundle.source.id}`;
+  return (
+    <nav className="studio-tabs" aria-label="Studio tabs">
+      <Link to={bookId ? `${base}` : base}>Reader</Link>
+      <Link to={bookId ? `/graph/${bundle.source.id}/${bookId}` : `/graph/${bundle.source.id}`}>Graph</Link>
+      <Link to={bookId ? `${base}/studio` : `${base}/studio`}>Studio</Link>
+      <Link to="/studio/research">Research</Link>
+      <Link to="/studio/reviews">Reviews</Link>
+      <Link to="/studio/decisions">Decisions</Link>
+      <Link to="/studio/art">Art</Link>
+    </nav>
+  );
+}
+
+function statusClass(status?: string) {
+  const value = String(status ?? "recorded").toLowerCase();
+  if (value.includes("ready") || value.includes("pass") || value.includes("approved") || value.includes("good")) return "good";
+  if (value.includes("fail") || value.includes("block") || value.includes("needs")) return "bad";
+  return "neutral";
+}
+
+function StudioHome() {
+  const { seriesId, bookId } = useParams();
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading Studio..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const bundle = findBundle(bundles.data, seriesId);
+  if (!bundle) return <ErrorState error="Unknown series" />;
+  const book = bundle.reader.books.find(item => item.id === bookId);
+  const gates = bundle.quality.gates.length ? bundle.quality.gates : bundle.studio.quality.gates;
+  const maturityGates = bundle.quality.maturityGates?.length ? bundle.quality.maturityGates : (bundle.studio.quality.maturityGates ?? []);
+  const maturityScore = bundle.quality.maturityScore ?? bundle.studio.quality.maturityScore ?? 0;
+  const editorialAssessment = bundle.quality.editorialAssessment ?? bundle.studio.quality.editorialAssessment;
+  const visibleBooks = book ? bundle.studio.books.filter(item => item.id === book.id) : bundle.studio.books;
+  return (
+    <Shell>
+      <main className="studio-shell">
+        <section className="dashboard-hero">
+          <div>
+            <p>Studio observability</p>
+            <h1>{book ? book.title : bundle.reader.series.title}</h1>
+            <span>Research, reviews, decisions, runs, art, and quality gates are published as curated manifests.</span>
+          </div>
+          <span className={`status-pill ${statusClass(bundle.quality.status)}`}>{bundle.quality.status}</span>
+        </section>
+        <StudioTabs bundle={bundle} bookId={book?.id} />
+        {editorialAssessment ? (
+          <section className="editorial-callout">
+            <div>
+              <p>Autonomous editor decision</p>
+              <h2>{editorialAssessment.decision ?? "recorded"}</h2>
+              <span>{editorialAssessment.rationale ?? "The editor has recorded an assessment for the next story-development step."}</span>
+            </div>
+            <div>
+              <strong>{editorialAssessment.next_stage ?? "next-stage"}</strong>
+              <span>{Math.round((editorialAssessment.confidence ?? 0) * 100)}% confidence</span>
+            </div>
+            {editorialAssessment.blocking_development_questions?.length ? (
+              <ul>
+                {editorialAssessment.blocking_development_questions.slice(0, 3).map(question => <li key={question}>{question}</li>)}
+              </ul>
+            ) : null}
+          </section>
+        ) : (
+          <section className="editorial-callout pending">
+            <div>
+              <p>Autonomous editor decision</p>
+              <h2>not yet assessed</h2>
+              <span>Run `omg-book studio-assess --researcher chatgpt` so ChatGPT can decide whether this world is actually ready or needs more development.</span>
+            </div>
+          </section>
+        )}
+        <section className="metric-row">
+          {["researchDossiers", "places", "characters", "relationships", "timeline", "nodes"].map(key => (
+            <div className="metric" key={key}><strong>{bundle.studio.counts[key] ?? bundle.quality.counts[key] ?? 0}</strong><span>{key}</span></div>
+          ))}
+        </section>
+        <section className="studio-grid">
+          <article className="studio-card wide">
+            <div className="card-heading"><Search size={18} /><h2>Story Maturity Audit</h2></div>
+            <p>This is the aggressive development target, separate from hard validation. A low score means the system should keep developing world, research, character, timeline, and plot before treating the story as production-depth.</p>
+            <div className="maturity-score"><strong>{maturityScore}%</strong><span>production-depth target</span></div>
+            <div className="quality-list">
+              {maturityGates.map(gate => (
+                <div className="quality-gate" key={gate.id}>
+                  <span className={`status-dot ${gate.passed ? "good" : "bad"}`} />
+                  <strong>{gate.label}</strong>
+                  <em>{gate.actual} / {gate.minimum}</em>
+                </div>
+              ))}
+            </div>
+          </article>
+          <article className="studio-card wide">
+            <div className="card-heading"><CheckCircle2 size={18} /><h2>Quality Gates</h2></div>
+            <div className="quality-list">
+              {gates.map(gate => (
+                <div className="quality-gate" key={gate.id}>
+                  <span className={`status-dot ${gate.passed ? "good" : "bad"}`} />
+                  <strong>{gate.label}</strong>
+                  <em>{gate.actual} / {gate.minimum}</em>
+                </div>
+              ))}
+            </div>
+          </article>
+          <article className="studio-card">
+            <div className="card-heading"><Activity size={18} /><h2>Recent Runs</h2></div>
+            <ManifestList items={bundle.runs.runs.slice(-8)} primary="action" secondary="sourceFile" />
+          </article>
+          <article className="studio-card">
+            <div className="card-heading"><ClipboardList size={18} /><h2>Recent Decisions</h2></div>
+            <ManifestList items={bundle.decisions.decisions.slice(-8)} primary="title" secondary="reason" />
+          </article>
+          <article className="studio-card wide">
+            <div className="card-heading"><BookOpen size={18} /><h2>Books And Chapters</h2></div>
+            <div className="studio-table">
+              {visibleBooks.map(item => (
+                <div className="studio-row" key={item.id}>
+                  <strong>{item.title}</strong>
+                  <span>{item.chapters.length} chapters</span>
+                  <Link to={`/series/${bundle.source.id}/book/${item.id}/studio`}>Open studio</Link>
+                </div>
+              ))}
+            </div>
+          </article>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function ManifestList({ items, primary, secondary }: { items: Array<Record<string, unknown>>; primary: string; secondary: string }) {
+  if (!items.length) return <p className="empty-note">No records published yet.</p>;
+  return (
+    <div className="manifest-list">
+      {items.map((item, index) => (
+        <div className="manifest-item" key={String(item.id ?? item.sourceFile ?? index)}>
+          <strong>{String(item[primary] ?? item.id ?? "record")}</strong>
+          <span>{String(item[secondary] ?? item.status ?? "")}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function StudioResearchPage() {
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading research..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const dossiers = (bundles.data ?? []).flatMap(bundle => bundle.research.dossiers.map(item => ({ ...item, seriesId: bundle.source.id })));
+  return (
+    <Shell>
+      <main className="studio-shell">
+        <section className="dashboard-hero"><div><p>Research</p><h1>Curated Dossiers</h1><span>Readable craft, plausibility, visual, and worldbuilding source notes used by the engine.</span></div></section>
+        <div className="studio-grid">
+          {dossiers.map(item => (
+            <article className="studio-card" key={`${item.seriesId}-${item.id}`}>
+              <span className="card-kicker">{item.domain}</span>
+              <h2>{item.title}</h2>
+              <p>{item.summary}</p>
+              <small>{item.sourceFile}</small>
+              <Link className="inline-action" to={`/studio/research/${item.seriesId}/${encodeURIComponent(item.id)}`}>Read dossier</Link>
+            </article>
+          ))}
+        </div>
+      </main>
+    </Shell>
+  );
+}
+
+function StudioResearchDetailPage() {
+  const { seriesId, dossierId } = useParams();
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading research dossier..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const bundle = findBundle(bundles.data, seriesId);
+  const decodedId = decodeURIComponent(dossierId ?? "");
+  const dossier = bundle?.research.dossiers.find(item => item.id === decodedId);
+  if (!bundle || !dossier) return <ErrorState error="Unknown research dossier" />;
+  return (
+    <Shell>
+      <main className="studio-shell">
+        <section className="dashboard-hero">
+          <div>
+            <p>{dossier.domain} research dossier</p>
+            <h1>{dossier.title}</h1>
+            <span>{dossier.summary}</span>
+          </div>
+          <span className="status-pill neutral">{dossier.sourceFile}</span>
+        </section>
+        <section className="research-detail">
+          <article className="studio-card">
+            <h2>Source Families</h2>
+            <div className="tag-row">
+              {(dossier.sourceFamilies ?? []).map(item => <span key={item}>{item}</span>)}
+            </div>
+          </article>
+          <article className="studio-card wide">
+            <h2>Full Record</h2>
+            <pre>{JSON.stringify(dossier.details ?? dossier, null, 2)}</pre>
+          </article>
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function StudioRunsPage() {
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading runs..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const runs = (bundles.data ?? []).flatMap(bundle => bundle.runs.runs.map(item => ({ ...item, seriesId: bundle.source.id }))).reverse();
+  return <StudioRecordPage title="Runs" subtitle="Worker request ids, package ids, conversation URLs, and compact run metadata." records={runs} />;
+}
+
+function StudioDecisionsPage() {
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading decisions..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const records = (bundles.data ?? []).flatMap(bundle => bundle.decisions.decisions.map(item => ({ ...item, seriesId: bundle.source.id }))).reverse();
+  return <StudioRecordPage title="Decisions" subtitle="LLM, art, and repair decisions that shaped published artifacts." records={records} />;
+}
+
+function StudioReviewsPage() {
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading reviews..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const records = (bundles.data ?? []).flatMap(bundle => bundle.reviews.reviews.map(item => ({ ...item, seriesId: bundle.source.id }))).reverse();
+  return <StudioRecordPage title="Reviews" subtitle="Reviewer verdicts and blocking findings before planning, prose, and art are accepted." records={records} />;
+}
+
+function StudioArtPage() {
+  const bundles = useBundles();
+  if (bundles.isLoading) return <LoadingState label="Loading art..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const assets = (bundles.data ?? []).flatMap(bundle => bundle.art.assets.map(item => ({ ...item, seriesId: bundle.source.id })));
+  return (
+    <Shell>
+      <main className="studio-shell">
+        <section className="dashboard-hero"><div><p>Art</p><h1><ImageIcon size={25} /> Generated Chapter Assets</h1><span>Image assets are shown only when approved art decisions point at safe published paths.</span></div></section>
+        <section className="artifact-grid">
+          {assets.map(item => (
+            <figure className="artifact-card" key={`${item.seriesId}-${item.path}`}>
+              <img src={item.url} alt={item.alt} />
+              <figcaption><strong>{item.kind}</strong><span>{item.bookId} / {item.chapterId}</span></figcaption>
+            </figure>
+          ))}
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
+function StudioRecordPage({ title, subtitle, records }: { title: string; subtitle: string; records: Array<Record<string, unknown>> }) {
+  return (
+    <Shell>
+      <main className="studio-shell">
+        <section className="dashboard-hero"><div><p>Studio</p><h1>{title}</h1><span>{subtitle}</span></div></section>
+        <section className="studio-table record-table">
+          {records.map((item, index) => (
+            <article className="studio-row" key={String(item.id ?? item.sourceFile ?? index)}>
+              <div>
+                <strong>{String(item.title ?? item.action ?? item.id ?? "record")}</strong>
+                <span>{String(item.reason ?? item.sourceFile ?? "")}</span>
+              </div>
+              <span className={`status-pill ${statusClass(String(item.status ?? item.verdict ?? ""))}`}>{String(item.status ?? item.verdict ?? "recorded")}</span>
+              {item.conversationUrl ? <a href={String(item.conversationUrl)}>Conversation</a> : <small>{String(item.packageId ?? item.requestId ?? "")}</small>}
+            </article>
+          ))}
+        </section>
+      </main>
+    </Shell>
+  );
+}
+
 function SeriesPage() {
   const { seriesId } = useParams();
   const bundles = useBundles();
@@ -251,6 +623,7 @@ function SeriesPage() {
           <h1>{bundle.reader.series.title}</h1>
           <span>{bundle.reader.series.logline}</span>
         </section>
+        <StudioTabs bundle={bundle} />
         <section className="metric-row">
           {Object.entries(counts).slice(0, 8).map(([key, value]) => <div className="metric" key={key}><strong>{value}</strong><span>{key}</span></div>)}
         </section>
@@ -288,6 +661,7 @@ function BookPage() {
           <h1>{book.title}</h1>
           <span>{book.premise}</span>
         </section>
+        <StudioTabs bundle={bundle} bookId={book.id} />
         <section className="chapter-list">
           {chapters.map(chapter => (
             <Link className="chapter-row" to={`/read/${bundle.source.id}/${book.id}/${chapter.chapterId}`} key={chapter.chapterId}>
@@ -313,6 +687,10 @@ function ReaderPage() {
   useEffect(() => {
     let cancelled = false;
     if (!chapter) return;
+    if (!chapter.markdownUrl) {
+      setMarkdown("");
+      return;
+    }
     loadFreshText(chapter.markdownUrl).then(text => {
       if (!cancelled) setMarkdown(text);
     });
@@ -331,10 +709,24 @@ function ReaderPage() {
       <main className="reader-shell">
         <aside className="chapter-rail">
           <Link to={`/series/${bundle.source.id}/book/${bookId}`}>Book</Link>
+          <Link to={`/series/${bundle.source.id}/book/${bookId}/studio`}>Studio</Link>
           {bookChapters.map(item => <Link className={item.chapterId === chapter.chapterId ? "active" : ""} to={`/read/${bundle.source.id}/${item.bookId}/${item.chapterId}`} key={item.chapterId}>{item.title}</Link>)}
         </aside>
         <article className="prose-panel">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(markdown)}</ReactMarkdown>
+          {chapter.artifacts?.[0] ? (
+            <figure className="chapter-art">
+              <img src={chapter.artifacts[0].url} alt={chapter.artifacts[0].alt} />
+            </figure>
+          ) : null}
+          {chapter.markdownUrl ? (
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{stripFrontmatter(markdown)}</ReactMarkdown>
+          ) : (
+            <div className="planned-placeholder">
+              <p>Planned chapter</p>
+              <h1>{chapter.title}</h1>
+              <span>This chapter has an approved packet, but prose has not been drafted yet.</span>
+            </div>
+          )}
           <div className="reader-nav">
             {chapter.previousChapterId ? <Link to={`/read/${bundle.source.id}/${bookId}/${chapter.previousChapterId}`}><ChevronLeft size={18} /> Previous</Link> : <span />}
             {chapter.nextChapterId ? <Link to={`/read/${bundle.source.id}/${bookId}/${chapter.nextChapterId}`}>Next <ChevronRight size={18} /></Link> : <span />}
@@ -347,6 +739,7 @@ function ReaderPage() {
             <dt>Status</dt><dd>{chapter.status}</dd>
             <dt>Words</dt><dd>{chapter.wordCount}</dd>
             <dt>POV</dt><dd>{String(node?.data?.pov_character_id ?? "")}</dd>
+            <dt>Art</dt><dd>{chapter.generatedArt ? "generated" : "none"}</dd>
             <dt>Graph backlinks</dt><dd>{edges.length}</dd>
           </dl>
           <Link className="primary-action" to={`/graph/${bundle.source.id}/${bookId}?node=${encodeURIComponent(chapter.graphNodeId)}`}>Open in graph</Link>
@@ -390,10 +783,11 @@ function nodeColor(type: string) {
 }
 
 function GraphStudio() {
-  const { seriesId, bookId } = useParams();
+  const { seriesId, bookId, nodeId } = useParams();
   const [params] = useSearchParams();
   const bundles = useBundles();
-  const [selectedId, setSelectedId] = useState(params.get("node") ?? "");
+  const routeNodeId = nodeId ? decodeURIComponent(nodeId) : "";
+  const [selectedId, setSelectedId] = useState(routeNodeId || params.get("node") || "");
   const [query, setQuery] = useState("");
   const [hopMode, setHopMode] = useState<"all" | "one" | "two">("all");
   const [enabledTypes, setEnabledTypes] = useState<Set<string>>(new Set());
@@ -426,6 +820,11 @@ function GraphStudio() {
   const visibleNodeIds = new Set(visibleNodes.map(node => node.id));
   const visibleEdges = graph?.edges.filter(edge => visibleNodeIds.has(edge.from) && visibleNodeIds.has(edge.to)) ?? [];
   const selectedNode = graph?.nodes.find(node => node.id === selectedId) ?? visibleNodes[0] ?? null;
+
+  useEffect(() => {
+    const next = routeNodeId || params.get("node") || "";
+    if (next && next !== selectedId) setSelectedId(next);
+  }, [params, routeNodeId, selectedId]);
 
   useEffect(() => {
     if (!container.current || !graph) return;
@@ -513,6 +912,10 @@ function NodeDrawer({ bundle, node, edges }: { bundle: SeriesBundle; node: BookG
         <dt>Edges</dt><dd>{edges.length}</dd>
       </dl>
       {node.type === "chapter" ? <Link className="primary-action" to={`/read/${bundle.source.id}/${bookId}/${chapterId}`}>Read chapter</Link> : null}
+      <section className="node-data-section">
+        <h3>Record Details</h3>
+        <pre>{JSON.stringify(node.data ?? {}, null, 2)}</pre>
+      </section>
       <div className="backlink-list">
         {edges.map(edge => <span key={`${edge.from}-${edge.to}-${edge.type}`}>{edge.type}: {edge.from === node.id ? edge.to : edge.from}</span>)}
       </div>
@@ -563,8 +966,17 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/library" replace />} />
           <Route path="/library" element={<LibraryPage />} />
+          <Route path="/studio" element={<StudioHome />} />
+          <Route path="/studio/research" element={<StudioResearchPage />} />
+          <Route path="/studio/research/:seriesId/:dossierId" element={<StudioResearchDetailPage />} />
+          <Route path="/studio/runs" element={<StudioRunsPage />} />
+          <Route path="/studio/decisions" element={<StudioDecisionsPage />} />
+          <Route path="/studio/reviews" element={<StudioReviewsPage />} />
+          <Route path="/studio/art" element={<StudioArtPage />} />
           <Route path="/series/:seriesId" element={<SeriesPage />} />
+          <Route path="/series/:seriesId/studio" element={<StudioHome />} />
           <Route path="/series/:seriesId/book/:bookId" element={<BookPage />} />
+          <Route path="/series/:seriesId/book/:bookId/studio" element={<StudioHome />} />
           <Route path="/read/:seriesId/:bookId/:chapterId" element={<ReaderPage />} />
           <Route path="/graph" element={<GraphStudio />} />
           <Route path="/graph/:seriesId" element={<GraphStudio />} />

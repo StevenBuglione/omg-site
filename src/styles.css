@@ -152,10 +152,315 @@ select {
 .dashboard,
 .book-page,
 .graph-studio,
-.wiki-page {
+.wiki-page,
+.studio-shell {
   width: 100%;
   margin: 0;
   padding: 16px;
+}
+
+.studio-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 12px 0;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.studio-tabs a {
+  padding: 7px 10px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.studio-tabs a:hover {
+  color: var(--text);
+  background: var(--panel-2);
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.studio-card,
+.artifact-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.studio-card.wide {
+  grid-column: 1 / -1;
+}
+
+.studio-card h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+}
+
+.studio-card p {
+  margin: 0 0 10px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.studio-card small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.card-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.quality-list,
+.manifest-list,
+.studio-table {
+  display: grid;
+  gap: 6px;
+}
+
+.quality-gate,
+.manifest-item,
+.studio-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.manifest-item {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.manifest-item span,
+.studio-row span,
+.quality-gate em,
+.empty-note {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.studio-row > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.record-table {
+  margin-top: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  background: var(--panel-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-pill.good,
+.status-dot.good {
+  color: #0f6b3d;
+  background: #e8f7ef;
+  border-color: #b8e5cc;
+}
+
+.status-pill.bad,
+.status-dot.bad {
+  color: #9b2c2c;
+  background: #fff0f0;
+  border-color: #efc1c1;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 99px;
+  border: 1px solid var(--line);
+  background: var(--muted);
+}
+
+.artifact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.artifact-card {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.artifact-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  background: var(--panel-2);
+}
+
+.artifact-card figcaption {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+}
+
+.artifact-card figcaption span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.maturity-score {
+  display: inline-grid;
+  gap: 2px;
+  min-width: 140px;
+  margin: 4px 0 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.maturity-score strong {
+  font-size: 26px;
+}
+
+.maturity-score span,
+.tag-row span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.inline-action {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--accent);
+  background: var(--panel-2);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.research-detail {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.35fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.research-detail pre {
+  max-height: 62vh;
+  margin: 0;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #101820;
+  color: #e8eef2;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-row span {
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.editorial-callout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  margin: 12px 0;
+  padding: 14px;
+  border: 1px solid #b8d7ee;
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  background: #f4faff;
+}
+
+.editorial-callout.pending {
+  border-color: var(--line);
+  border-left-color: var(--muted);
+  background: var(--panel);
+}
+
+.editorial-callout p,
+.editorial-callout h2,
+.editorial-callout span {
+  margin: 0;
+}
+
+.editorial-callout p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.editorial-callout h2 {
+  margin-top: 3px;
+  font-size: 20px;
+}
+
+.editorial-callout span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.editorial-callout > div:last-child {
+  min-width: 150px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+}
+
+.editorial-callout ul {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
 }
 
 .hero,
@@ -436,6 +741,44 @@ select {
   line-height: 1.16;
 }
 
+.chapter-art {
+  margin: 0 0 24px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #101820;
+}
+
+.chapter-art img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: cover;
+}
+
+.planned-placeholder {
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  padding: 32px;
+  background: #fbfaf7;
+}
+
+.planned-placeholder p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.planned-placeholder h1 {
+  margin: 0 0 10px;
+}
+
+.planned-placeholder span {
+  color: var(--muted);
+}
+
 .prose-panel p,
 .wiki-page p,
 .wiki-page li {
@@ -588,6 +931,31 @@ select {
   border-radius: 0;
   background: var(--panel-2);
   overflow: auto;
+}
+
+.node-data-section {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.node-data-section h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.node-data-section pre {
+  max-height: 42vh;
+  margin: 0;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #101820;
+  color: #e8eef2;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .node-type {
