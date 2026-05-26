@@ -69,15 +69,33 @@ type EditorialAssessment = {
 };
 type QualityReport = { schemaVersion: string; generatedAt: string; status: string; gates: QualityGate[]; maturityGates?: QualityGate[]; maturityScore?: number; counts: Record<string, number>; editorialAssessment?: EditorialAssessment | null; recommendedNextActions: string[] };
 type ResearchManifest = { schemaVersion: string; generatedAt: string; dossiers: ResearchDossier[] };
-type ResearchDossier = { id: string; title: string; domain: string; summary: string; sourceFamilies?: string[]; bookIds?: string[]; chapterIds?: string[]; sourceFile: string; details?: Record<string, unknown> };
+type ResearchDossier = {
+  id: string;
+  title: string;
+  domain: string;
+  summary: string;
+  markdownUrl?: string | null;
+  markdownPath?: string;
+  citations?: Array<{ id: string; title: string; url: string; source_type?: string; reliability?: string; note?: string }>;
+  claimMap?: Array<{ claim_id: string; claim: string; confidence?: number; story_use?: string; citation_ids?: string[] }>;
+  sourceQuality?: Record<string, unknown>;
+  fictionApplications?: string[];
+  linkedNodes?: string[];
+  reviewStatus?: string;
+  sourceFamilies?: string[];
+  bookIds?: string[];
+  chapterIds?: string[];
+  sourceFile: string;
+  details?: Record<string, unknown>;
+};
 type StudioDecision = { id: string; type: string; bookId?: string | null; chapterId?: string | null; status: string; title: string; reason?: string; sourceFile: string; confidence?: number | null; conversationUrl?: string | null; packageId?: string | null; requestId?: string | null };
 type StudioReview = StudioDecision & { reviewer?: string; approved?: boolean; verdict?: string; blockingFindings?: string[]; nonBlockingFindings?: string[] };
 type DecisionManifest = { schemaVersion: string; generatedAt: string; decisions: StudioDecision[] };
 type ReviewManifest = { schemaVersion: string; generatedAt: string; reviews: StudioReview[] };
 type StudioRun = { id: string; action?: string | null; status: string; workerId?: string | null; packageId?: string | null; requestId?: string | null; conversationUrl?: string | null; sourceFile: string };
 type RunManifest = { schemaVersion: string; generatedAt: string; runs: StudioRun[] };
-type ArtAsset = { path: string; kind: string; alt: string; url: string; bookId?: string; chapterId?: string };
-type ArtManifest = { schemaVersion: string; generatedAt: string; decisions: StudioDecision[]; briefs: Array<Record<string, unknown> & { source_file: string }>; assets: ArtAsset[] };
+type ArtAsset = { path: string; kind: string; alt: string; url: string; targetType?: string; targetNodeId?: string; bookId?: string | null; chapterId?: string | null };
+type ArtManifest = { schemaVersion: string; generatedAt: string; decisions: StudioDecision[]; briefs: Array<Record<string, unknown> & { source_file: string }>; reviews?: Array<Record<string, unknown>>; assets: ArtAsset[] };
 type BookRecord = { id: string; title: string; sequence: number; status: string; premise?: string; chapterIds?: string[] };
 type ReaderChapter = {
   seriesId: string;
@@ -142,6 +160,8 @@ async function loadText(url: string): Promise<string> {
 }
 
 async function loadFreshText(url: string): Promise<string> {
+  const localUrl = localDevDataUrl(url);
+  if (localUrl) return await loadText(localUrl);
   return await loadText(rawGitHubUrl(url) ?? url);
 }
 
@@ -489,10 +509,13 @@ function StudioResearchPage() {
         <div className="studio-grid">
           {dossiers.map(item => (
             <article className="studio-card" key={`${item.seriesId}-${item.id}`}>
-              <span className="card-kicker">{item.domain}</span>
+              <span className="card-kicker">{item.domain} / {item.reviewStatus ?? "unreviewed"}</span>
               <h2>{item.title}</h2>
               <p>{item.summary}</p>
-              <small>{item.sourceFile}</small>
+              <small>{item.markdownPath ?? item.sourceFile}</small>
+              <div className="tag-row">
+                {(item.sourceFamilies ?? []).slice(0, 4).map(source => <span key={source}>{source}</span>)}
+              </div>
               <Link className="inline-action" to={`/studio/research/${item.seriesId}/${encodeURIComponent(item.id)}`}>Read dossier</Link>
             </article>
           ))}
@@ -505,11 +528,23 @@ function StudioResearchPage() {
 function StudioResearchDetailPage() {
   const { seriesId, dossierId } = useParams();
   const bundles = useBundles();
-  if (bundles.isLoading) return <LoadingState label="Loading research dossier..." />;
-  if (bundles.error) return <ErrorState error={bundles.error} />;
+  const [markdown, setMarkdown] = useState("");
   const bundle = findBundle(bundles.data, seriesId);
   const decodedId = decodeURIComponent(dossierId ?? "");
   const dossier = bundle?.research.dossiers.find(item => item.id === decodedId);
+  useEffect(() => {
+    let cancelled = false;
+    setMarkdown("");
+    if (!dossier?.markdownUrl) return;
+    loadFreshText(dossier.markdownUrl).then(text => {
+      if (!cancelled) setMarkdown(text);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dossier?.markdownUrl]);
+  if (bundles.isLoading) return <LoadingState label="Loading research dossier..." />;
+  if (bundles.error) return <ErrorState error={bundles.error} />;
   if (!bundle || !dossier) return <ErrorState error="Unknown research dossier" />;
   return (
     <Shell>
@@ -523,15 +558,42 @@ function StudioResearchDetailPage() {
           <span className="status-pill neutral">{dossier.sourceFile}</span>
         </section>
         <section className="research-detail">
-          <article className="studio-card">
+          <article className="studio-card research-sidebar">
             <h2>Source Families</h2>
             <div className="tag-row">
               {(dossier.sourceFamilies ?? []).map(item => <span key={item}>{item}</span>)}
             </div>
+            <h2>Citations</h2>
+            <div className="manifest-list">
+              {(dossier.citations ?? []).map(citation => (
+                <a className="manifest-item" href={citation.url} key={citation.id}>
+                  <strong>{citation.title}</strong>
+                  <span>{citation.source_type ?? "source"} / {citation.reliability ?? "unrated"}</span>
+                </a>
+              ))}
+            </div>
+            <h2>Linked Nodes</h2>
+            <div className="tag-row">
+              {(dossier.linkedNodes ?? []).map(node => <Link to={`/node/${encodeURIComponent(node)}?s=${bundle.source.id}`} key={node}>{node}</Link>)}
+            </div>
           </article>
           <article className="studio-card wide">
-            <h2>Full Record</h2>
-            <pre>{JSON.stringify(dossier.details ?? dossier, null, 2)}</pre>
+            <h2>Research Notes</h2>
+            {markdown ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown> : <p className="empty-note">No readable Markdown dossier was published.</p>}
+            <h2>Claim Map</h2>
+            <div className="claim-list">
+              {(dossier.claimMap ?? []).map(claim => (
+                <div className="claim-card" key={claim.claim_id}>
+                  <strong>{claim.claim}</strong>
+                  <span>{Math.round((claim.confidence ?? 0) * 100)}% confidence</span>
+                  <p>{claim.story_use}</p>
+                </div>
+              ))}
+            </div>
+            <details className="record-details">
+              <summary>Structured JSON</summary>
+              <pre>{JSON.stringify(dossier.details ?? dossier, null, 2)}</pre>
+            </details>
           </article>
         </section>
       </main>
@@ -568,18 +630,29 @@ function StudioArtPage() {
   if (bundles.isLoading) return <LoadingState label="Loading art..." />;
   if (bundles.error) return <ErrorState error={bundles.error} />;
   const assets = (bundles.data ?? []).flatMap(bundle => bundle.art.assets.map(item => ({ ...item, seriesId: bundle.source.id })));
+  const groups = assets.reduce<Record<string, typeof assets>>((acc, item) => {
+    const key = item.targetType ?? "chapter";
+    acc[key] = acc[key] ?? [];
+    acc[key].push(item);
+    return acc;
+  }, {});
   return (
     <Shell>
       <main className="studio-shell">
-        <section className="dashboard-hero"><div><p>Art</p><h1><ImageIcon size={25} /> Generated Chapter Assets</h1><span>Image assets are shown only when approved art decisions point at safe published paths.</span></div></section>
-        <section className="artifact-grid">
-          {assets.map(item => (
-            <figure className="artifact-card" key={`${item.seriesId}-${item.path}`}>
-              <img src={item.url} alt={item.alt} />
-              <figcaption><strong>{item.kind}</strong><span>{item.bookId} / {item.chapterId}</span></figcaption>
-            </figure>
-          ))}
-        </section>
+        <section className="dashboard-hero"><div><p>Art</p><h1><ImageIcon size={25} /> Canon Image Assets</h1><span>Images are grouped by character, location, item, and chapter, and only appear when approved art decisions point at existing safe paths.</span></div></section>
+        {Object.entries(groups).map(([group, items]) => (
+          <section className="art-group" key={group}>
+            <h2>{group}</h2>
+            <div className="artifact-grid">
+              {items.map(item => (
+                <figure className="artifact-card" key={`${item.seriesId}-${item.path}`}>
+                  <img src={item.url} alt={item.alt} />
+                  <figcaption><strong>{item.alt}</strong><span>{item.kind} / {item.targetNodeId ?? item.chapterId}</span></figcaption>
+                </figure>
+              ))}
+            </div>
+          </section>
+        ))}
       </main>
     </Shell>
   );
@@ -901,6 +974,9 @@ function NodeDrawer({ bundle, node, edges }: { bundle: SeriesBundle; node: BookG
   if (!node) return <aside className="node-drawer">Select a node</aside>;
   const chapterId = String(node.data?.chapter_id ?? "");
   const bookId = String(node.data?.book_id ?? "");
+  const artAssets = bundle.art.assets.filter(asset => asset.targetNodeId === node.id || (node.type === "chapter" && asset.chapterId === chapterId));
+  const linkedResearch = bundle.research.dossiers.filter(dossier => (dossier.linkedNodes ?? []).includes(node.id) || (chapterId && (dossier.chapterIds ?? []).includes(chapterId)));
+  const artReviews = (bundle.art.reviews ?? []).filter(review => String(review.target_node_id ?? "") === node.id);
   return (
     <aside className="node-drawer">
       <span className="node-type">{node.type}</span>
@@ -912,6 +988,36 @@ function NodeDrawer({ bundle, node, edges }: { bundle: SeriesBundle; node: BookG
         <dt>Edges</dt><dd>{edges.length}</dd>
       </dl>
       {node.type === "chapter" ? <Link className="primary-action" to={`/read/${bundle.source.id}/${bookId}/${chapterId}`}>Read chapter</Link> : null}
+      {artAssets.length ? (
+        <section className="node-data-section">
+          <h3>Approved Art</h3>
+          {artAssets.map(asset => (
+            <figure className="node-art-card" key={asset.path}>
+              <img src={asset.url} alt={asset.alt} />
+              <figcaption>{asset.kind}</figcaption>
+            </figure>
+          ))}
+        </section>
+      ) : null}
+      {linkedResearch.length ? (
+        <section className="node-data-section">
+          <h3>Linked Research</h3>
+          <div className="manifest-list">
+            {linkedResearch.map(dossier => (
+              <Link className="manifest-item" to={`/studio/research/${bundle.source.id}/${encodeURIComponent(dossier.id)}`} key={dossier.id}>
+                <strong>{dossier.title}</strong>
+                <span>{dossier.domain} / {dossier.reviewStatus ?? "unreviewed"}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {artReviews.length ? (
+        <section className="node-data-section">
+          <h3>Art Review</h3>
+          <pre>{JSON.stringify(artReviews, null, 2)}</pre>
+        </section>
+      ) : null}
       <section className="node-data-section">
         <h3>Record Details</h3>
         <pre>{JSON.stringify(node.data ?? {}, null, 2)}</pre>

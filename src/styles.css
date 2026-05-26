@@ -311,6 +311,15 @@ select {
   margin-top: 12px;
 }
 
+.art-group {
+  margin-top: 18px;
+}
+
+.art-group h2 {
+  margin: 0 0 8px;
+  text-transform: capitalize;
+}
+
 .artifact-card {
   margin: 0;
   padding: 0;
@@ -352,7 +361,8 @@ select {
 }
 
 .maturity-score span,
-.tag-row span {
+.tag-row span,
+.tag-row a {
   color: var(--muted);
   font-size: 12px;
 }
@@ -391,13 +401,61 @@ select {
   white-space: pre-wrap;
 }
 
+.research-detail .wide {
+  line-height: 1.55;
+}
+
+.research-detail .wide h1,
+.research-detail .wide h2,
+.research-detail .wide h3 {
+  margin: 18px 0 8px;
+}
+
+.research-sidebar {
+  align-self: start;
+  position: sticky;
+  top: 12px;
+}
+
+.claim-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.claim-card {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.claim-card span,
+.claim-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.record-details {
+  margin-top: 14px;
+}
+
+.record-details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
 .tag-row {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
 }
 
-.tag-row span {
+.tag-row span,
+.tag-row a {
   padding: 5px 7px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -956,6 +1014,27 @@ select {
   font-size: 12px;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.node-art-card {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel-2);
+}
+
+.node-art-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+}
+
+.node-art-card figcaption {
+  padding: 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .node-type {
